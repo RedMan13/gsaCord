@@ -1,4 +1,5 @@
 import {getGatewayUrl} from './discord-urls'
+import {GatewayStatus, state} from './state-managment'
 import type {GatewayPacket} from './discord-constants'
 import {GatewayOpcodes} from 'discord-enums'
 import DispatchEvent from './gateway-dispatch-event'
@@ -11,6 +12,7 @@ export default class ClientWebsocket extends WebSocket {
     waiting: boolean
 
     constructor(token: string, oldWebsocket?: ClientWebsocket) {
+        state.gateway.status = GatewayStatus.Connecting
         let url = getGatewayUrl()
         if (oldWebsocket) {
             url = oldWebsocket.resumePoint
@@ -34,6 +36,7 @@ export default class ClientWebsocket extends WebSocket {
                 if (packet.t === 'READY') {
                     this.resumePoint = eventData.resume_gateway_url
                     this.sessionId = eventData.session_id
+                    state.gateway.status = GatewayStatus.Connected
                 }
                 this.seq ??= packet.s
                 this.dispatchEvent(new DispatchEvent(packet.t, eventData))
@@ -42,11 +45,12 @@ export default class ClientWebsocket extends WebSocket {
                 this.sendHeartbeat()
                 break
             case GatewayOpcodes.Reconnect:
+                state.gateway.status = GatewayStatus.Reconnecting
                 this.reconnect()
                 break
             case GatewayOpcodes.InvalidSession:
-                this.dispatchEvent(new Event('unauthorized'))
                 this.close()
+                state.gateway.status = GatewayStatus.Unauthorized
                 break
             case GatewayOpcodes.Hello:
                 this.setHeartbeat(eventData.heartbeat_interval)
@@ -66,6 +70,9 @@ export default class ClientWebsocket extends WebSocket {
                 break
             }
         })
+        this.addEventListener('close', () => {
+            state.gateway.status = GatewayStatus.Closed
+        })
     }
     close() {
         super.close()
@@ -76,8 +83,8 @@ export default class ClientWebsocket extends WebSocket {
         this.sessionId = ''
     }
     reconnect() {
-        this.dispatchEvent(new Event('reconnect'))
         this.close()
+        state.gateway.ws = new ClientWebsocket(state.token, this)
     }
     sendOpcode(opcode: GatewayOpcodes, data: any) {
         this.send(JSON.stringify({

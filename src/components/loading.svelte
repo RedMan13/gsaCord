@@ -1,14 +1,6 @@
-<script lang="ts">
-    export let loaded: boolean | any
-</script>
-
-{#if loaded}
-    <slot />
-{:else}
-    <div style="display:flex; justify-content:center; align-items:center; height:100%">
-        <div class="loader" />
-    </div>
-{/if}
+<div style="display:flex; justify-content:center; align-items:center; height:100%">
+    <div class="loader" />
+</div>
 
 <style>
     .loader {

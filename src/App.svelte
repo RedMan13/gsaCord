@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { setContext, getContext } from 'svelte'
+    import {GatewayStatus, state} from './utils/state-managment'
     import {fetchDiscord} from './utils/discord-requests'
     import Loading from './components/loading.svelte'
     import ClientWebsocket from './utils/client-websocket'
@@ -8,49 +8,46 @@
     import Messages from './components/messages.svelte';
     import MessageProto from './components/message-proto.svelte';
     import Card from './components/card.svelte';
-    const token: string = 'MTA2MDg1NzE4Mzc1Mjk0OTc5MA.GJBYrI.qnQmCymskbMGgszi5fzPuryQX1evxUrJ9ZY1CI'
-    setContext('token', token)
-    setContext('channel', '1038236110335266907')
-    let guilds = []
-    $: setContext('guilds', guilds)
-    const channel: string = getContext('channel')
-    let login = false
-    let ws = new ClientWebsocket(token)
+
+    // give the token to local storage any time it changes
+    $: localStorage.setItem('token', state.token)
+    state.token = ''
+    state.channel = '1038236110335266907'
+    let ws = new ClientWebsocket(state.token)
+    state.gateway.ws = ws
     let ready = 0
-    let messages = []
-    function reconnect() {
-        ws = new ClientWebsocket(token, ws)
-    }
     ws.addEventListener('READY', (e: GatewayEvent) => {
         const data = e.data
-        guilds = data.guilds
-        fetchDiscord(`/channels/${channel}/messages`)
+        state.guilds = data.guilds
+        fetchDiscord(`/channels/${state.channel}/messages`)
             .then(data => {
-                messages = data.reverse()
+                state.messages = data.reverse()
                 ready++
             })
         console.log(data)
         ready++
     })
-    ws.addEventListener('unauthorized', () => {
-        login = true
-        ready = 2
-    })
+    $: {
+        if (state.gateway.status === GatewayStatus.Unauthorized) {
+            state.login = true
+        }
+        console.log(state)
+    }
 
     export let theme: DiscordTheme
+    /*<Loading />*/
 </script>
 
 <main style="height: 100%;">
-    <Loading loaded={ready === 2}>
-        {#if login}
-            <card>
-                your mom :Trol:
-            </card>
-        {:else}
-            $: <Messages {theme} {messages}></Messages>
-            <MessageProto {theme}></MessageProto>
-        {/if}
-    </Loading>
+    
+    {#if state.login}
+        <Card>
+            your mom :Trol:
+        </Card>
+    {:else}
+        <Messages {theme}></Messages>
+        <MessageProto {theme}></MessageProto>
+    {/if}
 </main>
 
 <style>
